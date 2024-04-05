@@ -1,103 +1,103 @@
-#include <raylib.h>
+#include <cmath>
 #include <iostream>
+#include <raylib.h>
+#include <raymath.h>
 #include <vector>
 
-struct Entity {
-    Rectangle rec;
-    Color color;
-    bool is_moving;
-};
+const int SCREEN_WIDTH = 800;
+const int SCREEN_HEIGHT = 400;
+const float GRAVITY = 800;
+const float FRICTION = 10;
+
+struct {
+  Vector2 pos = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
+  Vector2 velocity = Vector2Zero();
+  bool is_on_floor = false;
+
+  const Vector2 SIZE = {40, 40};
+  const float SPEED = 300;
+} player;
 
 std::vector<Rectangle> world;
 
-bool operator==(const Rectangle& lhs, const Rectangle& rhs) {
-    if (lhs.x == rhs.x && lhs.y == rhs.y && lhs.width == rhs.width &&
-        lhs.height == rhs.height) return true;
-    else return false;
+void setup(void) {
+  InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "2dgame");
+  // SetTargetFPS(690);
+  world.push_back({0, SCREEN_HEIGHT - 30, SCREEN_WIDTH, 30});
+  world.push_back({100, 200, 30, 800});
+  world.push_back({400, 100, 100, 30});
 }
 
-const size_t WORLD_SIZE = 10;
+// better collision FULL STEP / COARSE STEP
+void player_move_and_collide(void) {
+  const float delta = GetFrameTime();
+  Vector2 amount = Vector2Scale(player.velocity, delta);
 
-const int SPEED = 100;
-const int JUMP_SPEED = 10;
-
-const int TERMINAL_VELOCITY = 5;
-const int BASE_VELOCITY = 0.5;
-float velocity = 0.8;
-
-void move_entity(Entity& entity, const int key, float amount) {
-    const Rectangle old_rec = entity.rec;
-    switch(key) {
-    case KEY_LEFT: entity.rec.x -= SPEED * amount; break;
-    case KEY_RIGHT: entity.rec.x += SPEED * amount; break;
-    case KEY_UP: entity.rec.y -= JUMP_SPEED * SPEED * amount; break;
-    case KEY_DOWN: entity.rec.y += SPEED * amount; break;
-    default: break;
+  float old_x = player.pos.x;
+  player.pos.x += amount.x;
+  Rectangle body = {player.pos.x, player.pos.y, player.SIZE.x, player.SIZE.y};
+  for (size_t i = 0; i < world.size(); i++)
+    if (CheckCollisionRecs(body, world[i])) {
+      player.pos.x = old_x;
+      break;
     }
 
-    for (size_t i = 0; i < world.size(); i++) {
-        if (CheckCollisionRecs(entity.rec, world[i])) {
-            entity.rec = old_rec;
-            entity.is_moving = false;
-        }
-    }
-}
+  bool y_dir = signbit(amount.y);
+  if (y_dir)
+    player.is_on_floor = false;
 
-void apply_gravitation(Entity& entity) {
-    velocity += 0.8;
-    move_entity(entity, KEY_DOWN, GetFrameTime() * velocity);
-    if (entity.is_moving == false) velocity = BASE_VELOCITY;
-}
-
-void move_player(Entity& player, const std::vector<Rectangle> world) {
-    if (IsKeyDown(KEY_LEFT)) move_entity(player, KEY_LEFT, GetFrameTime());
-    if (IsKeyDown(KEY_RIGHT)) move_entity(player, KEY_RIGHT, GetFrameTime());
-    if (IsKeyDown(KEY_UP) && !player.is_moving) move_entity(player, KEY_UP, GetFrameTime());
-    if (IsKeyDown(KEY_DOWN)) move_entity(player, KEY_DOWN, GetFrameTime());
-    apply_gravitation(player);
-}
-
-void draw_world(const std::vector<Rectangle> world) {
-    for (size_t i = 0; i < world.size(); i++) {
-        DrawRectangleRec(world[i], Color{120, 120, 120, 255});
+  float old_y = player.pos.y;
+  player.pos.y += amount.y;
+  body = {player.pos.x, player.pos.y, player.SIZE.x, player.SIZE.y};
+  for (size_t i = 0; i < world.size(); i++)
+    if (CheckCollisionRecs(body, world[i])) {
+      if (!y_dir)
+        player.is_on_floor = true;
+      player.pos.y = old_y;
+      break;
     }
 }
 
-void place_block() {
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        Vector2 mpos = {0, 0};
-        mpos = GetMousePosition();
-        Rectangle new_rec = {mpos.x, mpos.y, 10, 10};
-        world.push_back(new_rec);
-    }
+void render(void) {
+  BeginDrawing();
+  ClearBackground(BLACK);
+  for (size_t i = 0; i < world.size(); i++)
+    DrawRectangleRec(world[i], GRAY);
+  DrawRectangleV(player.pos, player.SIZE, RED);
+  std::cout << player.is_on_floor << std::endl;
+  DrawFPS(10, 10);
+  EndDrawing();
 }
 
-int main(void)
-{
-    const int SCREENWIDTH = 800;
-    const int SCREENHEIGHT = 400;
+void update(void) {
+  // gravity
+  if (!player.is_on_floor) {
+    player.velocity.y += GRAVITY * GetFrameTime();
+    if (player.velocity.y > 1000)
+      player.velocity.y = 1000;
+  }
+  // vertical
+  if (player.is_on_floor && IsKeyPressed(KEY_W))
+    player.velocity.y = -player.SPEED * 2;
+  // horizontal
+  int horizontal = IsKeyDown(KEY_D) - IsKeyDown(KEY_A);
+  if (horizontal)
+    player.velocity.x = horizontal * player.SPEED;
+  else {
+    float friction = player.is_on_floor ? 15 : 0.5;
+    player.velocity.x = Lerp(player.velocity.x, 0, friction * GetFrameTime());
+  }
 
-    const int PLAYER_SIZE = 20;
-    Entity player = {
-        Rectangle{SCREENWIDTH / 2, SCREENHEIGHT / 2, PLAYER_SIZE, PLAYER_SIZE},
-        Color{255, 0, 0, 255},
-        .is_moving = true
-    };
+  player_move_and_collide();
 
-    world.push_back({0, 350, 800, 40});
+  render();
+}
 
-    InitWindow(SCREENWIDTH, SCREENHEIGHT, "2dgame");
-    SetTargetFPS(60);
-    while (!WindowShouldClose()) // Detect window close button or ESC key
-    {
-        move_player(player, world);
-        place_block();
-        BeginDrawing();
-            ClearBackground(BLACK);
-            draw_world(world);
-            DrawRectangleRec(player.rec, player.color);
-        EndDrawing();
-    }
-    CloseWindow();
-    return 0;
+void cleanup(void) { CloseWindow(); }
+
+int main(void) {
+  setup();
+  while (!WindowShouldClose())
+    update();
+  cleanup();
 }
