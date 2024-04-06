@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <raylib.h>
@@ -8,6 +9,7 @@ const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGHT = 400;
 const float GRAVITY = 800;
 const float FRICTION = 10;
+const float MAX_GRAVITY = 1000;
 
 struct {
   Vector2 pos = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
@@ -28,10 +30,8 @@ void setup(void) {
   world.push_back({400, 100, 100, 30});
 }
 
-// better collision FULL STEP / COARSE STEP
 void player_move_and_collide(void) {
-  const float delta = GetFrameTime();
-  Vector2 amount = Vector2Scale(player.velocity, delta);
+  Vector2 amount = Vector2Scale(player.velocity, GetFrameTime());
 
   float old_x = player.pos.x;
   player.pos.x += amount.x;
@@ -73,8 +73,7 @@ void update(void) {
   // gravity
   if (!player.is_on_floor) {
     player.velocity.y += GRAVITY * GetFrameTime();
-    if (player.velocity.y > 1000)
-      player.velocity.y = 1000;
+    player.velocity.y = std::min(player.velocity.y, MAX_GRAVITY);
   }
   // vertical
   if (player.is_on_floor && IsKeyPressed(KEY_W))
@@ -84,7 +83,7 @@ void update(void) {
   if (horizontal)
     player.velocity.x = horizontal * player.SPEED;
   else {
-    float friction = player.is_on_floor ? 15 : 0.5;
+    const float friction = player.is_on_floor ? 15 : 0.5;
     player.velocity.x = Lerp(player.velocity.x, 0, friction * GetFrameTime());
   }
 

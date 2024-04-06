@@ -1,0 +1,8 @@
+// scale for step improvement without needing to increase fps
+// coyte time
+// func horiz flip character
+// harta matrice de bocuri
+// every frame pos player afli block, 3x3 at player rects
+#might be better 5x5
+// tidy up code
+// better collision FULL STEP / COARSE STEP
